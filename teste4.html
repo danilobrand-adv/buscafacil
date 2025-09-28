@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Busca Inteligente de Leis - Carregamento Automático</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.min.js"></script>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; background:#f4f4f9; color: #333; }
+.container { max-width: 900px; margin: auto; background: #fff; padding: 20px 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+.controles { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
+.campo { display: flex; flex-direction: column; flex: 1; min-width: 250px; }
+input, select, button { padding: 10px; font-size: 16px; border-radius: 4px; border: 1px solid #ccc; transition: all 0.3s ease; }
+input:focus, select:focus { border-color: #007bff; outline: none; box-shadow: 0 0 5px rgba(0, 123, 255, 0.5); }
+button { background: #007bff; color: white; border: none; margin-top: 10px; cursor: pointer; font-weight: bold; }
+button:hover:not(:disabled) { background: #0056b3; transform: translateY(-1px); }
+button:disabled { background: #adb5bd; cursor: not-allowed; }
+.resultados, .conteudo-lei { margin-top: 20px; padding: 20px; border: 1px solid #eee; background: #fafafa; border-radius: 4px; }
+.resultado-item { border-bottom: 1px solid #ddd; padding-bottom: 15px; margin-bottom: 15px; }
+.destaque { font-weight: bold; color: #d9534f; background: #fcf8e3; padding: 1px 3px; border-radius: 3px; }
+.loading { text-align: center; font-style: italic; color: #666; }
+h1, h2 { color: #0056b3; }
+/* Ajuste de lista para garantir recuo e evitar conflitos */
+ul, ol { margin-top: 5px; padding-left: 30px; } 
+li { margin-bottom: 5px; }
+.erro { color: #d9534f; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Busca Inteligente de Leis</h1>
+
+<div class="controles">
+    <div class="campo">
+        <label for="inputPDFs">Adicionar mais PDFs:</label>
+        <input type="file" id="inputPDFs" multiple accept="application/pdf">
+    </div>
+    <div class="campo">
+        <label for="selecaoLei">Selecione a Lei:</label>
+        <select id="selecaoLei"><option value="">Nenhuma lei</option></select>
+    </div>
+    <div class="campo">
+        <label for="inputBusca">Buscar por Palavra:</label>
+        <input type="text" id="inputBusca" placeholder="Ex: 'direitos' ou 'impostos'">
+        <button id="btnBuscarTexto" disabled>Buscar</button>
+    </div>
+    <div class="campo">
+        <label for="inputArtigo">Buscar por Artigo:</label>
+        <input type="text" id="inputArtigo" placeholder="Ex: 5">
+        <button id="btnBuscarArtigo" disabled>Buscar Artigo</button>
+    </div>
+</div>
+
+<div class="resultados" id="resultados"></div>
+<div class="conteudo-lei" id="conteudoLei"></div>
+
+</div>
+
+<script>
+let leis = [];
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.worker.min.js';
+
+// =================================================================
+// 🚨 ATENÇÃO: EDITAR ESTA LISTA! (Sua lista de arquivos)
+// =================================================================
+const PDFS_PARA_CARREGAR_AUTOMATICAMENTE = [
+    'Constituicao_Federal.pdf', // Exemplo 1
+    'Codigo_Civil.pdf',          // Exemplo 2
+    'Del3689 - CÓDIGO DE PROCESSO PENAL - CPP.pdf',
+    'L4737compilado - CÓDIGO ELEITORAL - CE.pdf',
+    'L7492 - CRIMES CONTRA SISTEMA FINANCEIRO NACIONAL.pdf',
+    'L7505 - LEI SARNEY - BENEFÍCIOS FISCAIS IRPF PARA CULTURA.pdf',
+    'L8313compilada - PROGRAMA NACIONAL DE APOIO À CULTURA - PRONAC.pdf',
+    'L8685compilado - MECANISMOS DE FOMENTO À ATIVIDADE AUDIVISUAL.pdf',
+    'L9099 - JUIZADOS ESPECIAIS CÍVEIS E CRIMANAIS - JECRIM.pdf',
+    'L9296 - LEI INTERCEPAÇÃO TELEFÓNICA.pdf',
+    'L9613compilado - CRIMES DE LAVAGEM DE DINHEIRO OU OCULTAÇÃO DE BENS.pdf',
+    'L9807 - LEI PROTEÇÃO ESPECIAL A VÍTIMAS E TESTEMUNHAS.pdf',
+    'L10259 - JUIZADOS ESPECIAIS CÍVEIS E CRIMANAIS - JECRIM FEDERAL.pdf',
+    'L12850 - LEI ORGANIZAÇÃO CRIMINOSA.pdf',
+    'Lei nº 11.343 - LEI DE DROGAS.pdf',
+    'Lei nº 11.343 - SISTEMA NACIONAL DE POLÍTICAS PUBLICAS SOBRE DROGAS - SISNAD.pdf',
+];
+// =================================================================
+
+
+// --- Funções Auxiliares para Estrutura e Destaque ---
+
+function coletarTexto(estrutura) {
+    let texto = (estrutura.numero || '') + ' ' + (estrutura.conteudo || '');
+    
+    if (estrutura.paragrafos) {
+        estrutura.paragrafos.forEach(p => texto += ' ' + coletarTexto(p));
+    }
+    if (estrutura.incisos) {
+        estrutura.incisos.forEach(i => texto += ' ' + coletarTexto(i));
+    }
+    if (estrutura.alíneas) {
+        estrutura.alíneas.forEach(a => texto += ' ' + a.conteudo);
+    }
+    return texto.replace(/\s+/g, ' ').trim();
+}
+
+function destacar(texto, termo) {
+    if (!termo) return texto;
+    const escapedTermo = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(${escapedTermo})`, 'gi');
+    return texto.replace(re, '<span class="destaque">$1</span>');
+}
+
+// --- FUNÇÕES DE FORMATAÇÃO CORRIGIDAS ---
+
+function formatarSecao(secao, termo = '') {
+    let secaoHtml = '';
+    
+    // Conteúdo principal (Artigo, Parágrafo ou Inciso com número)
+    if (secao.numero) {
+        secaoHtml += `<strong>${secao.numero}</strong> `;
+    }
+    secaoHtml += `${destacar(secao.conteudo, termo)}`;
+    
+    // Lista de Incisos (sub-nível: usa lista de Incisos - Romanos)
+    if (secao.incisos && secao.incisos.length > 0) {
+        // CORREÇÃO: Estilo Romano Maiúsculo
+        secaoHtml += `<ul style="list-style-type: upper-roman;">`; 
+        secao.incisos.forEach(inciso => {
+            secaoHtml += `<li>${formatarSecao(inciso, termo)}</li>`;
+        });
+        secaoHtml += `</ul>`;
+    }
+    
+    // Lista de Alíneas (sub-nível: usa lista de Alíneas - Lower-alpha)
+    if (secao.alíneas && secao.alíneas.length > 0) {
+        // CORREÇÃO: Estilo Lower-alpha
+        secaoHtml += `<ol style="list-style-type: lower-alpha;">`; 
+        secao.alíneas.forEach(alinea => {
+            secaoHtml += `<li>${destacar(alinea.conteudo, termo)}</li>`;
+        });
+        secaoHtml += `</ol>`;
+    }
+    return secaoHtml;
+};
+
+function formatarArtigo(artigo, termo = '') {
+    let html = `<div class="resultado-item">
+        <p><strong>${artigo.numero}</strong> ${destacar(artigo.conteudo, termo)}</p>
+    `;
+
+    // Parágrafos e Incisos diretos do artigo (que são tratados como uma lista)
+    if (artigo.paragrafos.length > 0 || artigo.incisos.length > 0) {
+        // CORREÇÃO CRÍTICA: Usa list-style-type: none para a lista principal do Artigo,
+        // garantindo que não haja "bolinhas" indesejadas nos Incisos e Parágrafos.
+        html += `<ul style="list-style-type: none;">`; 
+        
+        artigo.paragrafos.forEach(paragrafo => {
+            html += `<li>${formatarSecao(paragrafo, termo)}</li>`;
+        });
+        
+        artigo.incisos.forEach(inciso => {
+            html += `<li>${formatarSecao(inciso, termo)}</li>`;
+        });
+
+        html += `</ul>`; 
+    }
+
+    html += `</div>`; 
+    return html;
+}
+
+// --- FIM FUNÇÕES DE FORMATAÇÃO CORRIGIDAS ---
+
+function limparResultados() {
+    document.getElementById('resultados').innerHTML = '';
+    document.getElementById('conteudoLei').innerHTML = '';
+    document.getElementById('conteudoLei').style.display = 'none';
+    document.getElementById('resultados').style.display = 'none';
+}
+
+function exibirConteudo(lei, termo = '') {
+    const div = document.getElementById('conteudoLei');
+    limparResultados();
+    div.style.display = 'block';
+
+    if (!lei || !lei.artigos) {
+        div.innerHTML = '<p class="erro">Não foi possível carregar o conteúdo da lei.</p>';
+        return;
+    }
+    
+    let html = `<h2>${lei.nome_lei}</h2>`;
+    lei.artigos.forEach(a => html += formatarArtigo(a, termo));
+    div.innerHTML = html;
+}
+
+function exibirResultados(resultados, termo) {
+    const div = document.getElementById('resultados');
+    limparResultados();
+    div.style.display = 'block';
+
+    if (resultados.length === 0) {
+        div.innerHTML = '<p>Nenhuma ocorrência encontrada.</p>';
+        return;
+    }
+
+    let html = `<h2>Resultados da Busca por: "${termo}"</h2>`;
+
+    resultados.forEach(r => {
+        html += `<h3><span style="color: #007bff;">${r.nome_lei}</span></h3>`;
+        r.artigos.forEach(artigo => {
+            html += formatarArtigo(artigo, termo);
+        });
+    });
+    
+    div.innerHTML = html;
+}
+
+function toggleBotoes(habilitar) {
+    document.getElementById('btnBuscarTexto').disabled = !habilitar;
+    document.getElementById('btnBuscarArtigo').disabled = !habilitar;
+    document.getElementById('selecaoLei').disabled = !habilitar;
+    document.getElementById('inputBusca').disabled = !habilitar;
+    document.getElementById('inputArtigo').disabled = !habilitar;
+}
+
+// --- Funções de Processamento Estrutural e PDF (Essenciais) ---
+// (As funções abaixo permanecem as mesmas, pois são responsáveis pela extração)
+
+function estruturarTexto(texto, nomeArquivo) {
+    const artigos = [];
+    let currentArtigo = null;
+    let currentParagrafo = null;
+    let currentInciso = null;
+    let currentAlinea = null;
+
+    const regexArtigo = /^(Art\.\s*\d+º?)\s*(.*)/i;
+    const regexParagrafo = /^(§\s*\d+º?)\s*(.*)|^Parágrafo\s+único\s*(.*)/i;
+    const regexInciso = /^([IVXLCDM]+\.?)\s*(.*)/i; 
+    const regexAlinea = /^([a-z]\))\s*(.*)/i; 
+
+    let linhas = texto.split('\n').map(line => line.trim()).filter(Boolean);
+    const linhasLimpo = [];
+    for (let i = 0; i < linhas.length; i++) {
+        const linhaAtual = linhas[i];
+        const proximaLinha = linhas[i + 1];
+
+        const isEstrutural = (str) => regexArtigo.test(str) || regexParagrafo.test(str) || regexInciso.test(str) || regexAlinea.test(str);
+        
+        if (proximaLinha && !/[.!?:]$/.test(linhaAtual) && !isEstrutural(proximaLinha)) {
+            linhas[i + 1] = linhaAtual + ' ' + proximaLinha;
+        } else {
+            linhasLimpo.push(linhaAtual);
+        }
+    }
+    linhas = linhasLimpo;
+
+    linhas.forEach(linha => {
+        let match;
+
+        if (match = linha.match(regexArtigo)) {
+            currentArtigo = { numero: match[1], conteudo: match[2] || '', paragrafos: [], incisos: [], texto_completo: '' };
+            artigos.push(currentArtigo);
+            currentParagrafo = null;
+            currentInciso = null;
+            currentAlinea = null;
+        } else if (match = linha.match(regexParagrafo)) {
+            if (currentArtigo) {
+                currentParagrafo = { numero: match[1] || 'Parágrafo único', conteudo: match[2] || match[3] || '', incisos: [], texto_completo: '' };
+                currentArtigo.paragrafos.push(currentParagrafo);
+                currentInciso = null;
+                currentAlinea = null;
+            }
+        } else if (match = linha.match(regexInciso)) {
+            const novoInciso = { numero: match[1], conteudo: match[2] || '', alíneas: [], texto_completo: '' };
+
+            if (currentParagrafo) {
+                currentInciso = novoInciso;
+                currentParagrafo.incisos.push(currentInciso);
+            } else if (currentArtigo) {
+                currentInciso = novoInciso;
+                currentArtigo.incisos.push(currentInciso);
+            }
+            currentAlinea = null;
+        } else if (match = linha.match(regexAlinea)) {
+            const novaAlinea = { conteudo: match[0], texto_completo: '' };
+            
+            if (currentInciso) {
+                currentAlinea = novaAlinea;
+                currentInciso.alíneas.push(novaAlinea);
+            } else if (currentArtigo) {
+                 const target = currentParagrafo || currentArtigo;
+                 if (target.incisos.length === 0 || target.incisos[target.incisos.length - 1].numero !== '') {
+                     currentInciso = { numero: '', conteudo: '', alíneas: [], texto_completo: '' };
+                     target.incisos.push(currentInciso);
+                 } else {
+                     currentInciso = target.incisos[target.incisos.length - 1];
+                 }
+                 currentAlinea = novaAlinea;
+                 currentInciso.alíneas.push(novaAlinea);
+            }
+        } else {
+            if (currentAlinea) {
+                currentAlinea.conteudo += ' ' + linha;
+            } else if (currentInciso) {
+                currentInciso.conteudo += ' ' + linha;
+            } else if (currentParagrafo) {
+                currentParagrafo.conteudo += ' ' + linha;
+            } else if (currentArtigo) {
+                currentArtigo.conteudo += ' ' + linha;
+            }
+        }
+    });
+
+    // Pré-processamento de texto completo para busca
+    artigos.forEach(art => {
+        art.conteudo = art.conteudo.replace(/\s+/g, ' ').trim();
+        art.paragrafos.forEach(p => {
+            p.conteudo = p.conteudo.replace(/\s+/g, ' ').trim();
+            p.incisos.forEach(i => {
+                i.conteudo = i.conteudo.replace(/\s+/g, ' ').trim();
+                i.alíneas.forEach(a => a.conteudo = a.conteudo.replace(/\s+/g, ' ').trim());
+                i.texto_completo = coletarTexto(i);
+            });
+            p.texto_completo = coletarTexto(p);
+        });
+
+        art.incisos.forEach(i => {
+            i.conteudo = i.conteudo.replace(/\s+/g, ' ').trim();
+            i.alíneas.forEach(a => a.conteudo = a.conteudo.replace(/\s+/g, ' ').trim());
+            i.texto_completo = coletarTexto(i);
+        });
+
+        art.texto_completo = coletarTexto(art);
+    });
+
+    return { nome_lei: nomeArquivo.replace(/\.pdf$/i, ''), artigos };
+}
+
+async function processarPDF(fileOrUrl, isUrl = false) {
+    let pdfData;
+    let fileName;
+
+    if (isUrl) {
+        fileName = fileOrUrl;
+        try {
+            const response = await fetch(fileOrUrl);
+            // IMPORTANTE: Isso só funcionará se você estiver usando um servidor local (como Live Server)
+            if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
+            pdfData = await response.arrayBuffer();
+        } catch (error) {
+            console.error(`Falha ao carregar o PDF: ${fileOrUrl}. Certifique-se de estar rodando em um servidor local.`, error);
+            return null;
+        }
+    } else {
+        fileName = fileOrUrl.name;
+        pdfData = await fileOrUrl.arrayBuffer();
+    }
+    
+    // Agora processa o buffer do PDF
+    const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+    let textoCompleto = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join('\n');
+        textoCompleto += pageText + '\n\n'; 
+    }
+    return estruturarTexto(textoCompleto, fileName);
+}
+
+
+// -----------------------------------------------------------------
+// FUNÇÃO DE CARREGAMENTO AUTOMÁTICO
+// -----------------------------------------------------------------
+async function carregarPDFsAutomaticamente() {
+    toggleBotoes(false);
+    const selecaoLei = document.getElementById('selecaoLei');
+    const resultadosDiv = document.getElementById('resultados');
+    
+    selecaoLei.innerHTML = '<option value="">Aguarde, carregando leis...</option>';
+    resultadosDiv.innerHTML = '<p class="loading">Iniciando carregamento de arquivos...</p>';
+    resultadosDiv.style.display = 'block';
+    
+    let leisCarregadasComSucesso = 0;
+
+    for (const fileName of PDFS_PARA_CARREGAR_AUTOMATICAMENTE) {
+        resultadosDiv.innerHTML = `<p class="loading">Processando: ${fileName}...</p>`;
+        const lei = await processarPDF(fileName, true);
+        
+        if (lei) {
+            leis.push(lei);
+            leisCarregadasComSucesso++;
+            // Adiciona ao dropdown
+            const option = document.createElement('option');
+            option.value = lei.nome_lei;
+            option.textContent = lei.nome_lei;
+            selecaoLei.appendChild(option);
+        } else {
+            resultadosDiv.innerHTML += `<p class="erro">Falha ao carregar ${fileName}. Verifique o nome do arquivo e se está no mesmo diretório.</p>`;
+        }
+    }
+
+    selecaoLei.querySelector('option').textContent = "Selecione uma lei";
+
+    if (leisCarregadasComSucesso > 0) {
+        resultadosDiv.innerHTML = `<p>Carregamento automático concluído. ${leisCarregadasComSucesso} lei(s) pronta(s) para busca.</p>`;
+        toggleBotoes(true);
+    } else {
+        resultadosDiv.innerHTML = '<p class="erro">Nenhuma lei carregada automaticamente. Verifique se os arquivos estão na pasta raiz e se você está usando um servidor local.</p>';
+        toggleBotoes(false);
+    }
+}
+
+
+// --- Eventos ---
+
+document.getElementById('inputPDFs').addEventListener('change', async e => {
+    toggleBotoes(false);
+    const files = Array.from(e.target.files);
+    
+    if (files.length === 0) {
+        if (leis.length > 0) toggleBotoes(true);
+        return;
+    }
+
+    const selecaoLei = document.getElementById('selecaoLei');
+    const resultadosDiv = document.getElementById('resultados');
+    resultadosDiv.innerHTML = '<p class="loading">Processando uploads...</p>';
+
+    let novasLeis = [];
+    for (const f of files) {
+        try {
+            const lei = await processarPDF(f, false);
+            if (lei) novasLeis.push(lei);
+        } catch (error) {
+             resultadosDiv.innerHTML += `<p class="erro">Erro ao processar ${f.name}.</p>`;
+        }
+    }
+    
+    leis = [...leis, ...novasLeis];
+
+    if (novasLeis.length > 0) {
+        novasLeis.forEach(lei => {
+            const option = document.createElement('option');
+            option.value = lei.nome_lei;
+            option.textContent = lei.nome_lei;
+            selecaoLei.appendChild(option);
+        });
+        resultadosDiv.innerHTML = `<p>${novasLeis.length} lei(s) adicionada(s) via upload.</p>`;
+    } else {
+        resultadosDiv.innerHTML = '<p class="erro">Nenhuma lei processada com sucesso via upload.</p>';
+    }
+    toggleBotoes(leis.length > 0);
+});
+
+
+document.getElementById('selecaoLei').addEventListener('change', e => {
+    const nome = e.target.value;
+    if (nome === "") {
+        limparResultados();
+        return;
+    }
+    const lei = leis.find(l => l.nome_lei === nome);
+    exibirConteudo(lei, document.getElementById('inputBusca').value.trim());
+});
+
+document.getElementById('btnBuscarTexto').addEventListener('click', () => {
+    const termo = document.getElementById('inputBusca').value.trim();
+    if (!termo) {
+        alert('Por favor, digite um termo para buscar.');
+        return;
+    }
+    
+    const nomeLeiSelecionada = document.getElementById('selecaoLei').value;
+
+    const leisParaBuscar = nomeLeiSelecionada ? 
+        [leis.find(l => l.nome_lei === nomeLeiSelecionada)].filter(Boolean) : 
+        leis;
+
+    const resultados = [];
+    
+    leisParaBuscar.forEach(lei => {
+        if (!lei || !lei.artigos) return;
+        const artigosFiltrados = lei.artigos.filter(artigo => {
+            return artigo.texto_completo.toLowerCase().includes(termo.toLowerCase());
+        });
+
+        if (artigosFiltrados.length > 0) {
+            const artigosParaExibir = artigosFiltrados.map(art => ({ ...art }));
+            resultados.push({ nome_lei: lei.nome_lei, artigos: artigosParaExibir });
+        }
+    });
+
+    exibirResultados(resultados, termo);
+});
+
+document.getElementById('btnBuscarArtigo').addEventListener('click', () => {
+    const numeroArtigoInput = document.getElementById('inputArtigo').value.trim();
+    const nomeLeiSelecionada = document.getElementById('selecaoLei').value;
+    
+    if (!numeroArtigoInput || !nomeLeiSelecionada) {
+        alert('Por favor, selecione uma lei e digite o número do artigo.');
+        return;
+    }
+
+    const numeroArtigoNormalizado = numeroArtigoInput.replace(/\D/g, '').trim();
+
+    const leiSelecionada = leis.find(l => l.nome_lei === nomeLeiSelecionada);
+    if (!leiSelecionada || !leiSelecionada.artigos) {
+        alert('Lei não encontrada ou sem conteúdo.');
+        return;
+    }
+
+    const artigoEncontrado = leiSelecionada.artigos.find(a => {
+        const numeroLimpo = a.numero.replace(/\D/g, '').trim();
+        return numeroLimpo === numeroArtigoNormalizado;
+    });
+
+    const termoBusca = document.getElementById('inputBusca').value.trim();
+    
+    if (artigoEncontrado) {
+        exibirConteudo({
+            nome_lei: leiSelecionada.nome_lei,
+            artigos: [artigoEncontrado]
+        }, termoBusca);
+    } else {
+        const resultadosDiv = document.getElementById('resultados');
+        limparResultados();
+        resultadosDiv.innerHTML = `<p class="erro">Artigo ${numeroArtigoInput} não encontrado na lei ${leiSelecionada.nome_lei}.</p>`;
+        resultadosDiv.style.display = 'block';
+    }
+});
+
+// Inicia o carregamento automático ao carregar a página
+document.addEventListener('DOMContentLoaded', carregarPDFsAutomaticamente);
+</script>
+</body>
+</html>
