@@ -6,9 +6,7 @@
 <title>Busca Inteligente de Leis - Carregamento Automático</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.min.js"></script>
 <style>
-<style>
 body { font-family: Arial, sans-serif; padding: 18px; background:#f4f4f9; color: #333; }
-/* Estilo padrão para telas pequenas (vertical) */
 .container { 
     max-width: 900px; 
     margin: auto; 
@@ -17,16 +15,12 @@ body { font-family: Arial, sans-serif; padding: 18px; background:#f4f4f9; color:
     border-radius: 6px; 
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
 }
-
-/* 🚨 NOVO: Media Query para telas horizontais ou tablets (a partir de 600px) */
-/* Isso garante que ele use a largura total em modo paisagem */
 @media (min-width: 600px) {
     .container {
-        max-width: 98%; /* Use 95% da largura da tela */
-        padding: 10px 20px; /* Mais espaço nas laterais para telas maiores */
+        max-width: 98%;
+        padding: 10px 20px;
     }
 }
-/* FIM NOVO */
 
 .controles { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
 .campo { display: flex; flex-direction: column; flex: 1; min-width: 250px; }
@@ -41,7 +35,6 @@ button:disabled { background: #adb5bd; cursor: not-allowed; }
 h1, h2 { color: #0056b3; }
 .erro { color: #d9534f; font-weight: bold; }
 
-/* ESTILOS DE ESTRUTURA LEGAL APRIMORADOS */
 .resultado-item { 
     margin-bottom: 20px; 
     border-bottom: 1px solid #ddd; 
@@ -51,7 +44,7 @@ h1, h2 { color: #0056b3; }
 }
 .destaque { 
     font-weight: bold; 
-    color: #333; /* Cor mais neutra para legibilidade */
+    color: #333;
     background: #ffecb3; 
     padding: 1px 0; 
     border-radius: 2px;
@@ -64,26 +57,24 @@ h1, h2 { color: #0056b3; }
 /* Base: Nível 0 - Artigo Caput/Parágrafo comum */
 .artigo-caput, .paragrafo-lei {
     padding-left: 0;
-    text-indent: 1.5em; /* Recuo padrão de parágrafo */
+    text-indent: 1.5em;
     margin-bottom: 8px;
 }
 /* Nível 1: Incisos (Romanos) */
 .inciso-lei {
     padding-left: 30px;
-    text-indent: -30px; /* Alinha o texto do inciso */
+    text-indent: -30px;
     margin-bottom: 8px;
 }
 /* Nível 2: Alíneas (Letras) */
 .alinea-lei {
     padding-left: 60px;
-    text-indent: -30px; /* Alinha o texto da alínea */
+    text-indent: -30px;
     margin-bottom: 8px;
 }
-/* Remove o recuo padrão de listas no HTML gerado */
 .artigo-conteudo > div {
     margin-top: 5px;
 }
-</style>
 </style>
 </head>
 <body>
@@ -100,9 +91,9 @@ h1, h2 { color: #0056b3; }
         <select id="selecaoLei"><option value="">Nenhuma lei</option></select>
     </div>
     <div class="campo">
-        <label for="inputBusca">Buscar por Palavra:</label>
+        <label for="inputBusca">Buscar por Palavra (Visualizar):</label>
         <input type="text" id="inputBusca" placeholder="Ex: 'direitos' ou 'impostos'">
-        <button id="btnBuscarTexto" disabled>Buscar</button>
+        <button id="btnBuscarTexto" disabled>Buscar</button> 
     </div>
     <div class="campo">
         <label for="inputArtigo">Buscar por Artigo:</label>
@@ -169,20 +160,17 @@ function destacar(texto, termo) {
     return texto.replace(re, '<span class="destaque">$1</span>');
 }
 
-// --- FUNÇÕES DE FORMATAÇÃO CORRIGIDAS ---
+// --- FUNÇÕES DE FORMATAÇÃO ---
 
 function formatarSecao(secao, termo = '') {
     let secaoHtml = '';
     
-    // Conteúdo principal (Artigo, Parágrafo ou Inciso com número)
     if (secao.numero) {
         secaoHtml += `<strong>${secao.numero}</strong> `;
     }
     secaoHtml += `${destacar(secao.conteudo, termo)}`;
     
-    // Lista de Incisos (sub-nível: usa lista de Incisos - Romanos)
     if (secao.incisos && secao.incisos.length > 0) {
-        // CORREÇÃO: Estilo Romano Maiúsculo
         secaoHtml += `<ul style="list-style-type: upper-roman;">`; 
         secao.incisos.forEach(inciso => {
             secaoHtml += `<li>${formatarSecao(inciso, termo)}</li>`;
@@ -190,9 +178,7 @@ function formatarSecao(secao, termo = '') {
         secaoHtml += `</ul>`;
     }
     
-    // Lista de Alíneas (sub-nível: usa lista de Alíneas - Lower-alpha)
     if (secao.alíneas && secao.alíneas.length > 0) {
-        // CORREÇÃO: Estilo Lower-alpha
         secaoHtml += `<ol style="list-style-type: lower-alpha;">`; 
         secao.alíneas.forEach(alinea => {
             secaoHtml += `<li>${destacar(alinea.conteudo, termo)}</li>`;
@@ -207,10 +193,7 @@ function formatarArtigo(artigo, termo = '') {
         <p><strong>${artigo.numero}</strong> ${destacar(artigo.conteudo, termo)}</p>
     `;
 
-    // Parágrafos e Incisos diretos do artigo (que são tratados como uma lista)
     if (artigo.paragrafos.length > 0 || artigo.incisos.length > 0) {
-        // CORREÇÃO CRÍTICA: Usa list-style-type: none para a lista principal do Artigo,
-        // garantindo que não haja "bolinhas" indesejadas nos Incisos e Parágrafos.
         html += `<ul style="list-style-type: none;">`; 
         
         artigo.paragrafos.forEach(paragrafo => {
@@ -228,7 +211,7 @@ function formatarArtigo(artigo, termo = '') {
     return html;
 }
 
-// --- FIM FUNÇÕES DE FORMATAÇÃO CORRIGIDAS ---
+// --- FIM FUNÇÕES DE FORMATAÇÃO ---
 
 function limparResultados() {
     document.getElementById('resultados').innerHTML = '';
@@ -275,7 +258,8 @@ function exibirResultados(resultados, termo) {
 }
 
 function toggleBotoes(habilitar) {
-    document.getElementById('btnBuscarTexto').disabled = !habilitar;
+    // Mantemos btnBuscarTexto sempre desabilitado para forçar a busca por 'input'
+    document.getElementById('btnBuscarTexto').disabled = true; 
     document.getElementById('btnBuscarArtigo').disabled = !habilitar;
     document.getElementById('selecaoLei').disabled = !habilitar;
     document.getElementById('inputBusca').disabled = !habilitar;
@@ -283,7 +267,6 @@ function toggleBotoes(habilitar) {
 }
 
 // --- Funções de Processamento Estrutural e PDF (Essenciais) ---
-// (As funções abaixo permanecem as mesmas, pois são responsáveis pela extração)
 
 function estruturarTexto(texto, nomeArquivo) {
     const artigos = [];
@@ -292,7 +275,9 @@ function estruturarTexto(texto, nomeArquivo) {
     let currentInciso = null;
     let currentAlinea = null;
 
-    const regexArtigo = /^(Art\.\s*\d+º?)\s*(.*)/i;
+    // 🚨 CORREÇÃO 1: Nova RegEx para Artigos (Suporta hifens: 3º-A)
+    const regexArtigo = /^(Art\.\s*(\d+º?(-[A-Z])?))\s*(.*)/i; 
+    
     const regexParagrafo = /^(§\s*\d+º?)\s*(.*)|^Parágrafo\s+único\s*(.*)/i;
     const regexInciso = /^([IVXLCDM]+\.?)\s*(.*)/i; 
     const regexAlinea = /^([a-z]\))\s*(.*)/i; 
@@ -317,7 +302,17 @@ function estruturarTexto(texto, nomeArquivo) {
         let match;
 
         if (match = linha.match(regexArtigo)) {
-            currentArtigo = { numero: match[1], conteudo: match[2] || '', paragrafos: [], incisos: [], texto_completo: '' };
+            // 🚨 CORREÇÃO 2: Acessa os grupos da nova RegEx
+            const numeroCompleto = match[2].trim(); // Ex: 1º, 3º-A
+            const conteudo = match[4] || ''; // Conteúdo do Artigo
+            
+            currentArtigo = { 
+                numero: 'Art. ' + numeroCompleto, 
+                conteudo: conteudo, 
+                paragrafos: [], 
+                incisos: [], 
+                texto_completo: '' 
+            };
             artigos.push(currentArtigo);
             currentParagrafo = null;
             currentInciso = null;
@@ -403,7 +398,6 @@ async function processarPDF(fileOrUrl, isUrl = false) {
         fileName = fileOrUrl;
         try {
             const response = await fetch(fileOrUrl);
-            // IMPORTANTE: Isso só funcionará se você estiver usando um servidor local (como Live Server)
             if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
             pdfData = await response.arrayBuffer();
         } catch (error) {
@@ -415,7 +409,6 @@ async function processarPDF(fileOrUrl, isUrl = false) {
         pdfData = await fileOrUrl.arrayBuffer();
     }
     
-    // Agora processa o buffer do PDF
     const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
     let textoCompleto = '';
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -449,7 +442,6 @@ async function carregarPDFsAutomaticamente() {
         if (lei) {
             leis.push(lei);
             leisCarregadasComSucesso++;
-            // Adiciona ao dropdown
             const option = document.createElement('option');
             option.value = lei.nome_lei;
             option.textContent = lei.nome_lei;
@@ -520,13 +512,23 @@ document.getElementById('selecaoLei').addEventListener('change', e => {
         return;
     }
     const lei = leis.find(l => l.nome_lei === nome);
-    exibirConteudo(lei, document.getElementById('inputBusca').value.trim());
+    // Ao mudar a lei, re-exibe o conteúdo, aplicando o destaque do termo atual.
+    exibirConteudo(lei, document.getElementById('inputBusca').value.trim()); 
 });
 
-document.getElementById('btnBuscarTexto').addEventListener('click', () => {
+// 🚨 NOVO: Evento 'input' para busca automática de texto
+document.getElementById('inputBusca').addEventListener('input', () => {
     const termo = document.getElementById('inputBusca').value.trim();
+    
+    // Se o termo estiver vazio, limpa e tenta exibir a lei completa se uma estiver selecionada
     if (!termo) {
-        alert('Por favor, digite um termo para buscar.');
+        const nomeLeiSelecionada = document.getElementById('selecaoLei').value;
+        if (nomeLeiSelecionada) {
+            const lei = leis.find(l => l.nome_lei === nomeLeiSelecionada);
+            exibirConteudo(lei, ''); // Exibe a lei completa sem destaque
+        } else {
+            limparResultados();
+        }
         return;
     }
     
@@ -545,13 +547,17 @@ document.getElementById('btnBuscarTexto').addEventListener('click', () => {
         });
 
         if (artigosFiltrados.length > 0) {
-            const artigosParaExibir = artigosFiltrados.map(art => ({ ...art }));
+            // Cria cópia dos artigos para evitar modificação do objeto original
+            const artigosParaExibir = artigosFiltrados.map(art => ({ ...art, paragrafos: [...art.paragrafos], incisos: [...art.incisos] })); 
             resultados.push({ nome_lei: lei.nome_lei, artigos: artigosParaExibir });
         }
     });
 
     exibirResultados(resultados, termo);
 });
+
+// O antigo bloco document.getElementById('btnBuscarTexto').addEventListener('click', ...) foi removido.
+
 
 document.getElementById('btnBuscarArtigo').addEventListener('click', () => {
     const numeroArtigoInput = document.getElementById('inputArtigo').value.trim();
@@ -562,7 +568,10 @@ document.getElementById('btnBuscarArtigo').addEventListener('click', () => {
         return;
     }
 
-    const numeroArtigoNormalizado = numeroArtigoInput.replace(/\D/g, '').trim();
+    // Normaliza o número para busca (ex: "5o" ou "5º" vira "5")
+    const numeroArtigoNormalizado = numeroArtigoInput.replace(/\D/g, '').trim(); 
+    // Normaliza para incluir o hifenizado, se houver
+    const numeroArtigoHifenizado = numeroArtigoInput.replace(/[^0-9A-Z-]/gi, '').trim().toUpperCase();
 
     const leiSelecionada = leis.find(l => l.nome_lei === nomeLeiSelecionada);
     if (!leiSelecionada || !leiSelecionada.artigos) {
@@ -571,8 +580,15 @@ document.getElementById('btnBuscarArtigo').addEventListener('click', () => {
     }
 
     const artigoEncontrado = leiSelecionada.artigos.find(a => {
+        // Tenta encontrar pela normalização (ex: "Art. 5º")
         const numeroLimpo = a.numero.replace(/\D/g, '').trim();
-        return numeroLimpo === numeroArtigoNormalizado;
+        if (numeroLimpo === numeroArtigoNormalizado) return true;
+        
+        // Tenta encontrar o Artigo hifenizado (ex: "Art. 3º-A")
+        // Remove "Art. " e compara.
+        const numeroArtigoLeiLimpo = a.numero.replace(/Art\.\s*/i, '').replace(/[^0-9A-Z-]/gi, '').trim().toUpperCase();
+
+        return numeroArtigoLeiLimpo === numeroArtigoHifenizado;
     });
 
     const termoBusca = document.getElementById('inputBusca').value.trim();
