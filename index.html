@@ -6,8 +6,28 @@
 <title>Busca Inteligente de Leis - Carregamento Automático</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.min.js"></script>
 <style>
+<style>
 body { font-family: Arial, sans-serif; padding: 20px; background:#f4f4f9; color: #333; }
-.container { max-width: 900px; margin: auto; background: #fff; padding: 20px 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+/* Estilo padrão para telas pequenas (vertical) */
+.container { 
+    max-width: 900px; 
+    margin: auto; 
+    background: #fff; 
+    padding: 20px 30px; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+}
+
+/* 🚨 NOVO: Media Query para telas horizontais ou tablets (a partir de 600px) */
+/* Isso garante que ele use a largura total em modo paisagem */
+@media (min-width: 600px) {
+    .container {
+        max-width: 95%; /* Use 95% da largura da tela */
+        padding: 30px 40px; /* Mais espaço nas laterais para telas maiores */
+    }
+}
+/* FIM NOVO */
+
 .controles { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
 .campo { display: flex; flex-direction: column; flex: 1; min-width: 250px; }
 input, select, button { padding: 10px; font-size: 16px; border-radius: 4px; border: 1px solid #ccc; transition: all 0.3s ease; }
@@ -15,15 +35,55 @@ input:focus, select:focus { border-color: #007bff; outline: none; box-shadow: 0 
 button { background: #007bff; color: white; border: none; margin-top: 10px; cursor: pointer; font-weight: bold; }
 button:hover:not(:disabled) { background: #0056b3; transform: translateY(-1px); }
 button:disabled { background: #adb5bd; cursor: not-allowed; }
+
 .resultados, .conteudo-lei { margin-top: 20px; padding: 20px; border: 1px solid #eee; background: #fafafa; border-radius: 4px; }
-.resultado-item { border-bottom: 1px solid #ddd; padding-bottom: 15px; margin-bottom: 15px; }
-.destaque { font-weight: bold; color: #d9534f; background: #fcf8e3; padding: 1px 3px; border-radius: 3px; }
 .loading { text-align: center; font-style: italic; color: #666; }
 h1, h2 { color: #0056b3; }
-/* Ajuste de lista para garantir recuo e evitar conflitos */
-ul, ol { margin-top: 5px; padding-left: 30px; } 
-li { margin-bottom: 5px; }
 .erro { color: #d9534f; font-weight: bold; }
+
+/* ESTILOS DE ESTRUTURA LEGAL APRIMORADOS */
+.resultado-item { 
+    margin-bottom: 20px; 
+    border-bottom: 1px solid #ddd; 
+    padding-bottom: 15px;
+    line-height: 1.6;
+    text-align: justify;
+}
+.destaque { 
+    font-weight: bold; 
+    color: #333; /* Cor mais neutra para legibilidade */
+    background: #ffecb3; 
+    padding: 1px 0; 
+    border-radius: 2px;
+}
+.artigo-caput { 
+    font-weight: bold; 
+    margin-bottom: 10px; 
+}
+
+/* Base: Nível 0 - Artigo Caput/Parágrafo comum */
+.artigo-caput, .paragrafo-lei {
+    padding-left: 0;
+    text-indent: 1.5em; /* Recuo padrão de parágrafo */
+    margin-bottom: 8px;
+}
+/* Nível 1: Incisos (Romanos) */
+.inciso-lei {
+    padding-left: 30px;
+    text-indent: -30px; /* Alinha o texto do inciso */
+    margin-bottom: 8px;
+}
+/* Nível 2: Alíneas (Letras) */
+.alinea-lei {
+    padding-left: 60px;
+    text-indent: -30px; /* Alinha o texto da alínea */
+    margin-bottom: 8px;
+}
+/* Remove o recuo padrão de listas no HTML gerado */
+.artigo-conteudo > div {
+    margin-top: 5px;
+}
+</style>
 </style>
 </head>
 <body>
@@ -535,4 +595,3 @@ document.addEventListener('DOMContentLoaded', carregarPDFsAutomaticamente);
 </script>
 </body>
 </html>
-
